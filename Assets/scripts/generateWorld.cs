@@ -12,16 +12,30 @@ public class generateWorld : MonoBehaviour
     public GameObject point;
     public GameObject triangle;
 
+    private ProcessStartInfo start; 
+
     public void Start()
     {
-        ProcessStartInfo start = new ProcessStartInfo();
+        start = new ProcessStartInfo();
 
         start.FileName = "python.exe";
-        start.Arguments = "\"" + Application.dataPath + "/python/perlin_noise.py\"" + $" \"{octaves} {seed}\"";
 
         start.UseShellExecute = false;
         start.RedirectStandardOutput = true;
         start.CreateNoWindow = true;
+
+        for (int i = -3; i <= 3; i++)
+        {
+            for (int j = -3; j <= 3; j++)
+            {
+                PrintChunk(i, j); 
+            }
+        }
+    }
+
+    public void PrintChunk(int x, int y)
+    {
+        start.Arguments = "\"" + Application.dataPath + "/python/perlin_noise.py\"" + $" \"{octaves} {seed} {x * 16} {y * 16} {x * 16 + 16} {y * 16 + 16}\"";
 
         float[,] array = null;
 
@@ -48,6 +62,7 @@ public class generateWorld : MonoBehaviour
                 }
             }
         }
+
         GameObject world = GameObject.Find("world");
 
         Vector3[,] points = new Vector3[array.GetLength(0), array.GetLength(1)];
@@ -60,49 +75,137 @@ public class generateWorld : MonoBehaviour
                 newPoint.transform.parent = world.transform;
                 if (j % 2 == 0)
                 {
-                    try
+                    points[i, j] = new Vector3(i + x * 16, array[i, j], j + y * 16);
+                    newPoint.transform.position = points[i, j];
+                    newPoint.name = $"point {i + x * 16} {j + y * 16}";
+                    Point script = newPoint.GetComponent<Point>();
+                    if (script != null)
                     {
-                        points[i, j] = new Vector3(i, array[i, j], j);
-                        newPoint.transform.position = points[i, j];
-                    }
-                    catch
-                    {
-
+                        script.height = points[i, j].y;
                     }
                 }
                 else
                 {
-                    try
+                    points[i, j] = new Vector3(i + 0.5f + x * 16, array[i, j], j + y * 16);
+                    newPoint.transform.position = points[i, j];
+                    newPoint.name = $"point {i + x * 16} {j + y * 16}";
+                    Point script = newPoint.GetComponent<Point>();
+                    if (script != null)
                     {
-                        points[i, j] = new Vector3(i + 0.5f, array[i, j], j);
-                        newPoint.transform.position = points[i, j];
-                    }
-                    catch
-                    {
-
+                        script.height = points[i, j].y;
                     }
                 }
             }
         }
         UnityEngine.Debug.Log(points.GetLength(0));
 
-        for (int i = 0; i < points.GetLength(0) - 1; i++)
+        for (int i = 0; i < points.GetLength(0); i++)
         {
-            for (int j = 0; j < points.GetLength(1) - 1; j++)
+            for (int j = 0; j < points.GetLength(1); j++)
             {
-                GameObject newTriangle = Instantiate(triangle, world.transform);
-                MeshFilter meshFilter = newTriangle.GetComponent<MeshFilter>();
-
-                Mesh mesh = meshFilter.mesh;
-
-                Vector3[] verticles = mesh.vertices;
-                verticles[0] = points[i + 1, j];
-                verticles[1] = points[i, j];
-                verticles[2] = points[i, j + 1];
-                mesh.vertices = verticles;
-
-                mesh.RecalculateNormals(); 
+                if (i < points.GetLength(0) - 1 && j < points.GetLength(1) - 1)
+                {
+                    Vector3 point1 = points[i + 1, j];
+                    Vector3 point2 = points[i, j];
+                    Vector3 point3 = points[i, j + 1];
+                    PrintTriangle(point1.x, point1.y, point1.z, point2.x, point2.y, point2.z, point3.x, point3.y, point3.z); 
+                }
+                if (i > 0 && j > 0)
+                {
+                    Vector3 point1 = points[i - 1, j];
+                    Vector3 point2 = points[i, j];
+                    Vector3 point3 = points[i, j - 1];
+                    PrintTriangle(point1.x, point1.y, point1.z, point2.x, point2.y, point2.z, point3.x, point3.y, point3.z);
+                }
             }
         }
+
+        GameObject startPoint = GameObject.Find($"point {x * 16} {y * 16 - 1}"); 
+        if (startPoint != null)
+        {
+            for (int i = x * 16; i < x * 16 + 16; i++)
+            {
+                GameObject point = GameObject.Find($"point {i} {y * 16 - 1}");
+                if (point != null)
+                {
+                    Point script = point.GetComponent<Point>();
+                    if (script != null)
+                    {
+                        float height = script.height;
+                        Vector3 point2 = points[i - x * 16, 0];
+                        Vector3 point3 = points[i - x * 16 + 1, 0];
+                        PrintTriangle(i + 0.5f, height, y * 16 - 1, point2.x, point2.y, point2.z, point3.x, point3.y, point3.z);
+
+                        GameObject nexPoint = GameObject.Find($"point {i + 1} {y * 16 - 1}");
+                        if (nexPoint != null)
+                        {
+                            Point nexScript = nexPoint.GetComponent<Point>();
+                            if (nexScript != null)
+                            {
+                                float nexHeight = nexScript.height;
+                                Vector3 point1 = points[i - x * 16 + 1, 0];
+                                PrintTriangle(i + 0.5f, height, y * 16 - 1, point1.x, point1.y, point1.z, i + 1.5f, nexHeight, y * 16 - 1);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        startPoint = GameObject.Find($"point {x * 16} {(y + 1) * 16}");
+        if (startPoint != null)
+        {
+            for (int i = x * 16 + 16; i > x * 16; i--)
+            {
+                GameObject point = GameObject.Find($"point {i} {(y + 1) * 16}");
+                if (point != null)
+                {
+                    Point script = point.GetComponent<Point>();
+                    if (script != null)
+                    {
+                        float height = script.height;
+                        Vector3 point2 = points[i - x * 16, 15];
+                        Vector3 point3 = points[i - x * 16 - 1, 15];
+                        PrintTriangle(i, height, (y + 1) * 16, point2.x, point2.y, point2.z, point3.x, point3.y, point3.z);
+
+                        GameObject nexPoint = GameObject.Find($"point {i - 1} {(y + 1) * 16}");
+                        if (nexPoint != null)
+                        {
+                            Point nexScript = nexPoint.GetComponent<Point>();
+                            if (nexScript != null)
+                            {
+                                float nexHeight = nexScript.height;
+                                Vector3 point1 = points[i - x * 16 - 1, 15];
+                                PrintTriangle(i, height, (y + 1) * 16, point1.x, point1.y, point1.z, i - 1, nexHeight, (y + 1) * 16);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    public void PrintTriangle(float x1, float y1, float z1, float x2, float y2, float z2, float x3, float y3, float z3)
+    {
+        GameObject world = GameObject.Find("world");
+
+        GameObject newTriangle = Instantiate(triangle, world.transform);
+
+        MeshFilter meshFilter = newTriangle.GetComponent<MeshFilter>();
+
+        Mesh mesh = new Mesh();
+
+        Vector3[] verticles = new Vector3[3];
+        verticles[0] = new Vector3(x1, y1 + 1, z1);
+        verticles[1] = new Vector3(x2, y2 + 1, z2);
+        verticles[2] = new Vector3(x3, y3 + 1, z3);
+
+        mesh.vertices = verticles;
+        mesh.triangles = new int[] { 0, 1, 2 };
+
+        mesh.RecalculateNormals();
+        mesh.RecalculateBounds();
+
+        meshFilter.mesh = mesh;
     }
 }
